@@ -66,9 +66,9 @@ export class SemanticTokensProvider {
             this.connection.languages.semanticTokens.onDelta(
                 this.handleSemanticDelta.bind(this)
             );
-            this.connection.languages.semanticTokens.onRange(
-                this.handleSemanticRange.bind(this)
-            );
+            //this.connection.languages.semanticTokens.onRange(
+            //    this.handleSemanticRange.bind(this)
+            //);
         }
 
     }
@@ -113,67 +113,164 @@ export class SemanticTokensProvider {
         );
     }
 
-    protected getTokenBuilder(document: TextDocument): SemanticTokensBuilder {
-        let result = this.tokenBuilders.get(document.uri);
+    protected getTokenBuilder(uri: string): SemanticTokensBuilder {
+        let result = this.tokenBuilders.get(uri);
         if (result !== undefined) {
             return result;
         }
         result = new SemanticTokensBuilder();
-        this.tokenBuilders.set(document.uri, result);
+        this.tokenBuilders.set(uri, result);
         return result;
     }
 
-    protected buildTokens(builder: SemanticTokensBuilder, document: TextDocument) {
-        const text = document.getText();
-        //const regexp = /\w+/g;
-        //let match: RegExpMatchArray;
-        //let tokenCounter: number = 0;
-        //let modifierCounter: number = 0;
-        //while ((match = regexp.exec(text)) !== null) {
-        //    const word = match[0];
-        //    const position = document.positionAt(match.index);
-        //    const tokenType = tokenCounter % TokenTypes._;
-        //    const tokenModifier = 1 << modifierCounter % TokenModifiers._;
+    protected buildTokens(builder: SemanticTokensBuilder, tree: Tree) {
+        const treeCursor = tree.walk();
+
+        const traverse = function(): void {
+            const node = treeCursor.currentNode();
+
+            if (node.type == "date") {
+                builder.push(
+                    node.startPosition.row,
+                    node.startPosition.column,
+                    node.text.length,
+                    SemanticTokensProvider.TokenTypes.number,
+                    SemanticTokensProvider.TokenModifiers.abstract
+                )
+            }
+            else if (node.type == "txn") {
+                builder.push(
+                    node.startPosition.row,
+                    node.startPosition.column,
+                    node.text.length,
+                    SemanticTokensProvider.TokenTypes.property,
+                    SemanticTokensProvider.TokenModifiers.abstract
+                )
+            }
+            else if (node.type == "account") {
+                builder.push(
+                    node.startPosition.row,
+                    node.startPosition.column,
+                    node.text.length,
+                    SemanticTokensProvider.TokenTypes.type,
+                    SemanticTokensProvider.TokenModifiers.abstract
+                )
+            }
+            else if (node.type == "amount") {
+                builder.push(
+                    node.startPosition.row,
+                    node.startPosition.column,
+                    node.text.length,
+                    SemanticTokensProvider.TokenTypes.number,
+                    SemanticTokensProvider.TokenModifiers.abstract
+                )
+            }
+            else if (node.type == "incomplete_amount") {
+                builder.push(
+                    node.startPosition.row,
+                    node.startPosition.column,
+                    node.text.length,
+                    SemanticTokensProvider.TokenTypes.number,
+                    SemanticTokensProvider.TokenModifiers.abstract
+                )
+            }
+            else if (node.type == "currency") {
+                builder.push(
+                    node.startPosition.row,
+                    node.startPosition.column,
+                    node.text.length,
+                    SemanticTokensProvider.TokenTypes.property,
+                    SemanticTokensProvider.TokenModifiers.abstract
+                )
+            }
+            else if (node.type == "key") {
+                builder.push(
+                    node.startPosition.row,
+                    node.startPosition.column,
+                    node.text.length,
+                    SemanticTokensProvider.TokenTypes.label,
+                    SemanticTokensProvider.TokenModifiers.abstract
+                )
+            }
+            else if (node.type == "string") {
+                builder.push(
+                    node.startPosition.row,
+                    node.startPosition.column,
+                    node.text.length,
+                    SemanticTokensProvider.TokenTypes.string,
+                    SemanticTokensProvider.TokenModifiers.abstract
+                )
+            }
+            else if (node.type == "tag") {
+                builder.push(
+                    node.startPosition.row,
+                    node.startPosition.column,
+                    node.text.length,
+                    SemanticTokensProvider.TokenTypes.constant,
+                    SemanticTokensProvider.TokenModifiers.abstract
+                )
+            }
+            else if (node.type == "comment") {
+                builder.push(
+                    node.startPosition.row,
+                    node.startPosition.column,
+                    node.text.length,
+                    SemanticTokensProvider.TokenTypes.comment,
+                    SemanticTokensProvider.TokenModifiers.abstract
+                )
+            }
+
+            if (treeCursor.gotoFirstChild()) {
+                traverse();
+
+                while (treeCursor.gotoNextSibling()) {
+                    traverse();
+                }
+
+                treeCursor.gotoParent();
+            }
+        }
         //    builder.push(position.line, position.character, word.length, tokenType, tokenModifier);
-        //    tokenCounter++;
-        //    modifierCounter++;
-        //}
     }
 
     private handleSemantic(
         params: SemanticTokensParams
     ): SemanticTokens {
-        const document = this.documentEvents.get(params.textDocument.uri)
-        if (document === undefined) {
+        const uri = params.textDocument.uri
+        const forest = container.resolve<Forest>("Forest")
+        const treeContainer = forest.getByUri(uri)
+        if (treeContainer === undefined) {
             return {
                 data: []
             };
         }
-        const builder = this.getTokenBuilder(document)
-        this.buildTokens(builder, document);
+        const builder = this.getTokenBuilder(uri)
+        this.buildTokens(builder, treeContainer.tree);
         return builder.build();
     }
 
     protected handleSemanticDelta(
         params: SemanticTokensDeltaParams
     ): SemanticTokens {
-        const document = this.documentEvents.get(params.textDocument.uri)
-        if (document === undefined) {
+        const uri = params.textDocument.uri
+        const forest = container.resolve<Forest>("Forest")
+        const treeContainer = forest.getByUri(uri)
+        if (treeContainer === undefined) {
             return {
                 data: []
             };
         }
-        const builder = this.getTokenBuilder(document)
+        const builder = this.getTokenBuilder(uri)
         builder.previousResult(params.previousResultId)
-        this.buildTokens(builder, document);
+        this.buildTokens(builder, treeContainer.tree);
         return builder.build();
     }
 
-    protected handleSemanticRange(
-        params: SemanticTokensRangeParams
-    ): SemanticTokens {
-        return { data: [] };
-    }
+    //protected handleSemanticRange(
+    //    params: SemanticTokensRangeParams
+    //): SemanticTokens {
+    //    return { data: [] };
+    //}
 }
 
 export namespace SemanticTokensProvider {
@@ -182,16 +279,11 @@ export namespace SemanticTokensProvider {
         keyword = 1,
         string = 2,
         number = 3,
-        type = 5,
-        class = 6,
-        interface = 7,
-        enum = 8,
-        typeParameter = 9,
-        function = 10,
-        member = 11,
-        property = 12,
-        variable = 13,
-        parameter = 14,
+        type = 4,
+        property = 5,
+        parameter = 6,
+        label = 7,
+        constant = 8,
         _ = 16
     }
 
