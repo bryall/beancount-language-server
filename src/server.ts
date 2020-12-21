@@ -14,10 +14,13 @@ import { ASTProvider } from './providers/astProvider'
 import { BeanCheckProvider } from './providers/beanCheckProvider'
 import { DocumentFormattingProvider } from './providers/documentFormattingProvider'
 import { CompletionProvider } from './providers/completionProvider'
+import { SemanticTokensProvider } from './providers/semanticTokensProvider'
 
 export default class BeancountLspServer {
 
     private connection: lsp.Connection
+
+    private sematicTokens: lsp.SemanticTokensClientCapabilities | undefined;
 
     constructor(
         params: lsp.InitializeParams,
@@ -32,6 +35,8 @@ export default class BeancountLspServer {
                 'Must include journalFile in Initiaize parameters'
             )
         }
+
+        this.sematicTokens = params.capabilities.textDocument!.semanticTokens
     }
 
     /**
@@ -48,6 +53,7 @@ export default class BeancountLspServer {
         new BeanCheckProvider();
         new DocumentFormattingProvider();
         new CompletionProvider();
+        new SemanticTokensProvider(this.sematicTokens);
     }
 
     /**
